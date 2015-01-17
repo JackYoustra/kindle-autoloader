@@ -2,6 +2,7 @@
 #include <Dbt.h>
 #include <string>
 #include <sstream>
+#include <UserEnv.h>
 
 const wchar_t windowsClassName[] = L"KindleClass";
 
@@ -45,12 +46,39 @@ std::wstring writeToFile(LPCWSTR path, LPCVOID toWrite, DWORD byteLength){
 		toWrite, // thing to write
 		byteLength, // amount of bytes to write
 		NULL, // don't care about bytes written
-		false); // file wasn't oppened with overlapped
+		NULL); // file wasn't oppened with overlapped
 	if(!success) return std::wstring(L"Error! Couldn't write to file");
 	CloseHandle(destinationFileHandle);
 	return NULL;
 }
 
+std::wstring getEbookFolderPath(){
+	HANDLE hToken;
+	bool success = OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken);
+	if(!success){
+		CloseHandle(hToken);
+		return NULL;
+	}
+	DWORD profileDirLength = 512;
+	wchar_t profileDir[512];
+	success = GetUserProfileDirectory(hToken, profileDir, &profileDirLength);
+	if(!success){
+		unsigned long a = GetLastError();
+		wchar_t buffer[256];
+		wsprintfW(buffer, L"%u", a);
+
+		OutputDebugStringW(buffer);
+		CloseHandle(hToken);
+		return NULL;
+	}
+
+	CloseHandle(hToken);
+	
+	// got documents folder path; moving on...
+	std::wstringstream filePath;
+	filePath << profileDir << "\\Documents\\ebooks\\";
+	return filePath.str();
+}
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 	switch(msg){
@@ -101,6 +129,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
+	OutputDebugStringW(getEbookFolderPath().c_str());
 	// the handle for the window, filled by a function
     HWND hWnd;
     // this struct holds information for the window class
@@ -156,8 +185,3 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // return this part of the WM_QUIT message to Windows
     return msg.wParam;
 }
-
-
-
-
-
