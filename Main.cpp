@@ -3,6 +3,8 @@
 #include <string>
 #include <sstream>
 #include <UserEnv.h>
+#include <vector>
+#include "tinyxml2\tinyxml2.h"
 
 const wchar_t windowsClassName[] = L"KindleClass";
 
@@ -80,6 +82,49 @@ std::wstring getEbookFolderPath(){
 	return filePath.str();
 }
 
+std::wstring getManifestXMLPath(){
+	std::wstringstream filePath;
+	filePath << getEbookFolderPath() << "thingToRead.xml";
+	return filePath.str();
+}
+
+class Book{
+private:
+	std::string title;
+	std::string author;
+	std::string filelocation;
+public:
+	Book(const tinyxml2::XMLElement* readElement){
+		this->title = readElement->FirstChildElement("Title")->GetText();
+		this->author = readElement->FirstChildElement("Author")->GetText();
+		this->filelocation = readElement->FirstChildElement("Filename")->GetText();
+	}
+};
+
+class Library{
+private:
+	std::vector<Book*> bookList;
+public:
+	Library(std::wstring XMLPath){
+
+		std::string pathUTF = std::string(XMLPath.begin(), XMLPath.end());
+		tinyxml2::XMLDocument xmlManifest;
+		if(xmlManifest.LoadFile(pathUTF.c_str()) == NULL){ // it works
+			tinyxml2::XMLElement* rootLib = xmlManifest.FirstChildElement("Library");
+			for(tinyxml2::XMLElement* currentBook = rootLib->FirstChildElement("Book"); currentBook != NULL; currentBook = currentBook->NextSiblingElement("Book")){
+				// goes through each book in xml library
+				bookList.push_back(new Book(currentBook));
+			}
+		}
+	}
+	~Library(){
+		// cleanup vector
+		for(std::vector<Book*>::iterator bookIterator = bookList.begin(); bookIterator != bookList.end(); bookIterator++){
+			delete *bookIterator;
+		}
+	}
+};
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 	switch(msg){
 	case WM_DESTROY:
@@ -129,7 +174,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
-	OutputDebugStringW(getEbookFolderPath().c_str());
+	Library localLib(getManifestXMLPath());
 	// the handle for the window, filled by a function
     HWND hWnd;
     // this struct holds information for the window class
