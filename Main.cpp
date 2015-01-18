@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <windowsx.h>
 #include <Dbt.h>
 #include <string>
 #include <sstream>
@@ -99,6 +100,10 @@ public:
 		this->author = readElement->FirstChildElement("Author")->GetText();
 		this->filelocation = readElement->FirstChildElement("Filename")->GetText();
 	}
+
+	void writeBookDataToPath(std::wstring path){
+		CopyFile(std::wstring(filelocation.begin(), filelocation.end()).c_str(), path.c_str(), FALSE);
+	}
 };
 
 class Library{
@@ -125,12 +130,57 @@ public:
 	}
 };
 
+NOTIFYICONDATA icondata = {};
+
+enum TrayIcon{
+	ID = 13,
+	CALLBACKID = WM_APP+1
+};
+
+enum MenuItems{
+	ABOUT = WM_APP+3
+};
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 	switch(msg){
 	case WM_DESTROY:
+		Shell_NotifyIcon(NIM_DELETE, &icondata);
 		PostQuitMessage(0);
 		break;
+	case WM_COMMAND:
+		break;
 	// special ones here
+	case TrayIcon::CALLBACKID:
+		switch (LOWORD(lParam)){
+		case WM_RBUTTONDOWN:{
+			// get mouse position
+			int xpos = GET_X_LPARAM(lParam);
+			int ypos = GET_Y_LPARAM(lParam);
+
+			// set about menu item info
+			std::wstring aboutString = L"About";
+			MENUITEMINFO aboutInfo;
+			ZeroMemory(&aboutInfo, sizeof(aboutInfo));
+			aboutInfo.cbSize = sizeof(aboutInfo);
+			aboutInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
+			aboutInfo.fType = MFT_STRING;
+			aboutInfo.fState = MFS_DEFAULT;
+			aboutInfo.dwTypeData = const_cast<LPWSTR>(aboutString.c_str());
+			aboutInfo.cch = aboutString.length();
+			aboutInfo.wID = MenuItems::ABOUT;
+
+
+			HMENU menu = CreatePopupMenu();
+			InsertMenuItem(menu, 0, TRUE, &aboutInfo);
+
+			SetForegroundWindow(hwnd);
+			TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_LEFTBUTTON, xpos, ypos, NULL, hwnd, NULL);
+		}
+		default:
+			break;
+		}
+		break;
+
 	case WM_DEVICECHANGE:
 		if(wParam == DBT_DEVICEARRIVAL){
 			PDEV_BROADCAST_HDR anydevice = (PDEV_BROADCAST_HDR)lParam;
@@ -173,6 +223,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 	return 0;
 }
 
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
 	Library localLib(getManifestXMLPath());
 	// the handle for the window, filled by a function
@@ -211,6 +262,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // display the window on the screen
     ShowWindow(hWnd, nCmdShow);
+
+	// create taskbar icon
+	icondata.cbSize = sizeof(NOTIFYICONDATA);
+	icondata.uVersion = NOTIFYICON_VERSION_4;
+	icondata.hWnd = hWnd;
+	icondata.uID = TrayIcon::ID;
+	icondata.uFlags = NIF_ICON | NIF_MESSAGE;
+	icondata.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+	icondata.uCallbackMessage = TrayIcon::CALLBACKID;
+	// add icon
+	Shell_NotifyIcon(NIM_ADD, &icondata);
 
     // enter the main loop:
 
