@@ -137,8 +137,9 @@ enum TrayIcon{
 	CALLBACKID = WM_APP+1
 };
 
+// Open, options, and exit
 enum MenuItems{
-	ABOUT = WM_APP+3
+	OPEN = WM_APP+3
 };
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
@@ -148,6 +149,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 		PostQuitMessage(0);
 		break;
 	case WM_COMMAND:
+		if(HIWORD(wParam) == 0){// menu
+			switch(LOWORD(wParam)){ // which menu item
+			case MenuItems::OPEN:
+				ShowWindow(hwnd, SW_RESTORE);
+				break;
+			}
+		}
 		break;
 	// special ones here
 	case TrayIcon::CALLBACKID:
@@ -158,20 +166,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			int ypos = GET_Y_LPARAM(lParam);
 
 			// set about menu item info
-			std::wstring aboutString = L"About";
-			MENUITEMINFO aboutInfo;
-			ZeroMemory(&aboutInfo, sizeof(aboutInfo));
-			aboutInfo.cbSize = sizeof(aboutInfo);
-			aboutInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
-			aboutInfo.fType = MFT_STRING;
-			aboutInfo.fState = MFS_DEFAULT;
-			aboutInfo.dwTypeData = const_cast<LPWSTR>(aboutString.c_str());
-			aboutInfo.cch = aboutString.length();
-			aboutInfo.wID = MenuItems::ABOUT;
+			std::wstring openString = L"OPEN";
+			MENUITEMINFO openInfo;
+			ZeroMemory(&openInfo, sizeof(openInfo));
+			openInfo.cbSize = sizeof(openInfo);
+			openInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
+			openInfo.fType = MFT_STRING;
+			openInfo.fState = MFS_DEFAULT;
+			openInfo.dwTypeData = const_cast<LPWSTR>(openString.c_str());
+			openInfo.cch = openString.length();
+			openInfo.wID = MenuItems::OPEN;
 
 
 			HMENU menu = CreatePopupMenu();
-			InsertMenuItem(menu, 0, TRUE, &aboutInfo);
+			InsertMenuItem(menu, 0, TRUE, &openInfo);
 
 			SetForegroundWindow(hwnd);
 			TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_LEFTBUTTON, xpos, ypos, NULL, hwnd, NULL);
@@ -262,6 +270,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // display the window on the screen
     ShowWindow(hWnd, nCmdShow);
+	ShowWindow(hWnd, SW_MINIMIZE);
 
 	// create taskbar icon
 	icondata.cbSize = sizeof(NOTIFYICONDATA);
