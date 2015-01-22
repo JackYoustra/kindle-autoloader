@@ -139,14 +139,21 @@ enum TrayIcon{
 
 // Open, options, and exit
 enum MenuItems{
-	OPEN = WM_APP+3
+	OPEN = WM_APP+3,
+	OPTIONS = WM_APP+4,
+	EXIT = WM_APP + 5
 };
+
+
+void quit(){
+	Shell_NotifyIcon(NIM_DELETE, &icondata);
+	PostQuitMessage(0);
+}
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 	switch(msg){
 	case WM_DESTROY:
-		Shell_NotifyIcon(NIM_DELETE, &icondata);
-		PostQuitMessage(0);
+		quit();
 		break;
 	case WM_COMMAND:
 		if(HIWORD(wParam) == 0){// menu
@@ -162,11 +169,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 		switch (LOWORD(lParam)){
 		case WM_RBUTTONDOWN:{
 			// get mouse position
-			int xpos = GET_X_LPARAM(lParam);
-			int ypos = GET_Y_LPARAM(lParam);
+			POINT p;
+			GetCursorPos(&p);
+			const short xpos = p.x;
+			const short ypos = p.y;
 
 			// set about menu item info
-			std::wstring openString = L"OPEN";
+			std::wstring openString = L"Open";
 			MENUITEMINFO openInfo;
 			ZeroMemory(&openInfo, sizeof(openInfo));
 			openInfo.cbSize = sizeof(openInfo);
