@@ -161,6 +161,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			case MenuItems::OPEN:
 				ShowWindow(hwnd, SW_RESTORE);
 				break;
+			case MenuItems::EXIT:
+				quit();
+				break;
 			}
 		}
 		break;
@@ -173,8 +176,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			GetCursorPos(&p);
 			const short xpos = p.x;
 			const short ypos = p.y;
-
-			// set about menu item info
+			// *maybe* parameterize into functions
+			// set "Open" menu item info
 			std::wstring openString = L"Open";
 			MENUITEMINFO openInfo;
 			ZeroMemory(&openInfo, sizeof(openInfo));
@@ -186,9 +189,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			openInfo.cch = openString.length();
 			openInfo.wID = MenuItems::OPEN;
 
+			// set "Options" menu item info
+			std::wstring optionsString = L"Options";
+			MENUITEMINFO optionsInfo;
+			ZeroMemory(&optionsInfo, sizeof(optionsInfo));
+			optionsInfo.cbSize = sizeof(optionsInfo);
+			optionsInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
+			optionsInfo.fType = MFT_STRING;
+			optionsInfo.fState = MFS_ENABLED;
+			optionsInfo.dwTypeData = const_cast<LPWSTR>(optionsString.c_str());
+			optionsInfo.cch = optionsString.length();
+			optionsInfo.wID = MenuItems::OPTIONS;
 
+			// set "Exit" menu item info
+			std::wstring exitString = L"Exit";
+			MENUITEMINFO exitInfo;
+			ZeroMemory(&exitInfo, sizeof(exitInfo));
+			exitInfo.cbSize = sizeof(exitInfo);
+			exitInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
+			exitInfo.fType = MFT_STRING;
+			exitInfo.fState = MFS_ENABLED;
+			exitInfo.dwTypeData = const_cast<LPWSTR>(exitString.c_str());
+			exitInfo.cch = exitString.length();
+			exitInfo.wID = MenuItems::EXIT;
+
+
+			// actually make popup menu
 			HMENU menu = CreatePopupMenu();
 			InsertMenuItem(menu, 0, TRUE, &openInfo);
+			InsertMenuItem(menu, 1, TRUE, &optionsInfo);
+			InsertMenuItem(menu, 2, TRUE, &exitInfo);
 
 			SetForegroundWindow(hwnd);
 			TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_LEFTBUTTON, xpos, ypos, NULL, hwnd, NULL);
