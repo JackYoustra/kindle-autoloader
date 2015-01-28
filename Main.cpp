@@ -7,6 +7,12 @@
 #include <vector>
 #include "tinyxml2\tinyxml2.h"
 
+#ifndef UNICODE
+#define wchar_t char
+#define wstring string
+#define wstringstream stringstream
+#endif
+
 const wchar_t windowsClassName[] = L"KindleClass";
 
 // return drive letter
