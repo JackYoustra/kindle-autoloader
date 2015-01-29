@@ -5,38 +5,51 @@
 #include <sstream>
 #include <UserEnv.h>
 #include <vector>
+#include <CommCtrl.h>
 #include "tinyxml2\tinyxml2.h"
-
-#ifndef UNICODE
-#define wchar_t char
-#define wstring string
-#define wstringstream stringstream
-#endif
 
 const wchar_t windowsClassName[] = L"KindleClass";
 
+std::wstring utf8toUtf16(const std::string & str){
+   if (str.empty())
+      return std::wstring();
+
+   size_t charsNeeded = ::MultiByteToWideChar(CP_UTF8, 0, 
+      str.data(), (int)str.size(), NULL, 0);
+   if (charsNeeded == 0)
+      throw std::runtime_error("Failed converting UTF-8 string to UTF-16");
+
+   std::vector<wchar_t> buffer(charsNeeded);
+   int charsConverted = ::MultiByteToWideChar(CP_UTF8, 0, 
+      str.data(), (int)str.size(), &buffer[0], buffer.size());
+   if (charsConverted == 0)
+      throw std::runtime_error("Failed converting UTF-8 string to UTF-16");
+
+   return std::wstring(&buffer[0], charsConverted);
+}
+
 // return drive letter
 char FirstDriveFromMask( ULONG unitmask ){
-  char i;
+	char i;
 
-  for (i = 0; i < 26; ++i)
-   {
-    if (unitmask & 0x1)
-      break;
-    unitmask = unitmask >> 1;
-   }
+	for (i = 0; i < 26; ++i)
+	{
+		if (unitmask & 0x1)
+			break;
+		unitmask = unitmask >> 1;
+	}
 
-  return( i + 'A' );
+	return( i + 'A' );
 }
 
 bool stringEqualsIgnoreCase(std::wstring a, std::wstring b){
-    unsigned int sz = a.size();
-    if (b.size() != sz)
-        return false;
-    for (unsigned int i = 0; i < sz; ++i)
-        if (tolower(a[i]) != tolower(b[i]))
-            return false;
-    return true;
+	unsigned int sz = a.size();
+	if (b.size() != sz)
+		return false;
+	for (unsigned int i = 0; i < sz; ++i)
+		if (tolower(a[i]) != tolower(b[i]))
+			return false;
+	return true;
 }
 
 // returns null on sucess, error message on failure
@@ -82,7 +95,7 @@ std::wstring getEbookFolderPath(){
 	}
 
 	CloseHandle(hToken);
-	
+
 	// got documents folder path; moving on...
 	std::wstringstream filePath;
 	filePath << profileDir << "\\Documents\\ebooks\\";
@@ -110,6 +123,22 @@ public:
 	void writeBookDataToPath(std::wstring path){
 		CopyFile(std::wstring(filelocation.begin(), filelocation.end()).c_str(), path.c_str(), FALSE);
 	}
+
+	std::string getTitle(){
+		const std::string temp = title;
+		return temp;
+	}
+
+	std::string getAuthor(){
+		const std::string temp = author;
+		return temp;
+	}
+
+	std::string getFileLocation(){
+		const std::string temp = filelocation;
+		return temp;
+	}
+
 };
 
 class Library{
@@ -129,10 +158,15 @@ public:
 		}
 	}
 	~Library(){
+		OutputDebugString(L"Problem!");
 		// cleanup vector
 		for(std::vector<Book*>::iterator bookIterator = bookList.begin(); bookIterator != bookList.end(); bookIterator++){
 			delete *bookIterator;
 		}
+	}
+
+	std::vector<Book*> const &getBookList() const {
+		return bookList;
 	}
 };
 
@@ -167,13 +201,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			case MenuItems::OPEN:
 				ShowWindow(hwnd, SW_RESTORE);
 				break;
+			case MenuItems::OPTIONS:
+				break;
 			case MenuItems::EXIT:
 				quit();
 				break;
 			}
 		}
 		break;
-	// special ones here
+		// special ones here
 	case TrayIcon::CALLBACKID:
 		switch (LOWORD(lParam)){
 		case WM_RBUTTONDOWN:{
@@ -190,7 +226,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			openInfo.cbSize = sizeof(openInfo);
 			openInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
 			openInfo.fType = MFT_STRING;
-			openInfo.fState = MFS_DEFAULT;
+			openInfo.fState = MFS_ENABLED;
 			openInfo.dwTypeData = const_cast<LPWSTR>(openString.c_str());
 			openInfo.cch = openString.length();
 			openInfo.wID = MenuItems::OPEN;
@@ -214,7 +250,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 			exitInfo.cbSize = sizeof(exitInfo);
 			exitInfo.fMask = MIIM_ID | MIIM_STATE | MIIM_STRING;
 			exitInfo.fType = MFT_STRING;
-			exitInfo.fState = MFS_ENABLED;
+			exitInfo.fState = MFS_DEFAULT;
 			exitInfo.dwTypeData = const_cast<LPWSTR>(exitString.c_str());
 			exitInfo.cch = exitString.length();
 			exitInfo.wID = MenuItems::EXIT;
@@ -228,7 +264,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 
 			SetForegroundWindow(hwnd);
 			TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_LEFTBUTTON, xpos, ypos, NULL, hwnd, NULL);
-		}
+							}
 		default:
 			break;
 		}
@@ -262,10 +298,55 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 
 				if(stringEqualsIgnoreCase(volumeName, L"Kindle")){
 					// we know that this is the device we want
-					MessageBox(hwnd,
-						L"We found the kindle!",
-						L"Success!",
-						MB_ICONEXCLAMATION | MB_OK);
+
+					Library* bookLib = new Library(getManifestXMLPath());
+					std::vector<Book*> bookList = bookLib->getBookList();
+
+
+					SetForegroundWindow(hwnd);
+					RECT rect;
+					GetWindowRect(hwnd, &rect);
+
+					HWND hListBox = CreateWindowEx(
+						WS_EX_CLIENTEDGE,
+						L"LISTBOX",
+						L"Book Box",
+						WS_CHILD | WS_VISIBLE,
+						0, //x
+						0, //y
+						rect.right-rect.left, //width
+						rect.bottom-rect.top, //height
+						hwnd,
+						NULL,
+						GetModuleHandle(NULL),
+						NULL);
+
+					if(!hListBox){
+						MessageBox(hwnd,
+							L"Failure creating window",
+							L"Fail!",
+							MB_ICONERROR | MB_OK);
+					}
+					else{
+						ListView_SetExtendedListViewStyle(hListBox, LVS_EX_CHECKBOXES);
+						
+						const int bookListSize = bookList.size();
+						for(int i = 0; i < bookListSize; i++){
+							Book* book = bookList[i];
+
+							std::wstring title = utf8toUtf16(book->getTitle());
+							std::wstring author = utf8toUtf16(book->getAuthor());
+
+							std::wstring message = title + std::wstring(L" - ") + author;
+
+							int pos = (int)SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM) message.c_str()); 
+							// Set the array index of the player as item data.
+							// This enables us to retrieve the item from the array
+							// even after the items are sorted by the list box.
+							SendMessage(hListBox, LB_SETITEMDATA, pos, (LPARAM) i); 
+						}
+					}
+					ShowWindow(hwnd, SW_RESTORE);
 				}
 			}
 		}
@@ -280,41 +361,41 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
 	Library localLib(getManifestXMLPath());
 	// the handle for the window, filled by a function
-    HWND hWnd;
-    // this struct holds information for the window class
-    WNDCLASSEX wc;
+	HWND hWnd;
+	// this struct holds information for the window class
+	WNDCLASSEX wc;
 
-    // clear out the window class for use
-    ZeroMemory(&wc, sizeof(WNDCLASSEX));
+	// clear out the window class for use
+	ZeroMemory(&wc, sizeof(WNDCLASSEX));
 
-    // fill in the struct with the needed information
-    wc.cbSize = sizeof(WNDCLASSEX);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WindowProc;
-    wc.hInstance = hInstance;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
-    wc.lpszClassName = windowsClassName;
+	// fill in the struct with the needed information
+	wc.cbSize = sizeof(WNDCLASSEX);
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc = WindowProc;
+	wc.hInstance = hInstance;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+	wc.lpszClassName = windowsClassName;
 
-    // register the window class
-    RegisterClassEx(&wc);
+	// register the window class
+	RegisterClassEx(&wc);
 
-    // create the window and use the result as the handle
-    hWnd = CreateWindowEx(NULL,
-                          windowsClassName,    // name of the window class
-                          L"Our First Windowed Program",   // title of the window
-                          WS_OVERLAPPEDWINDOW,    // window style
-                          300,    // x-position of the window
-                          300,    // y-position of the window
-                          500,    // width of the window
-                          400,    // height of the window
-                          NULL,    // we have no parent window, NULL
-                          NULL,    // we aren't using menus, NULL
-                          hInstance,    // application handle
-                          NULL);    // used with multiple windows, NULL
+	// create the window and use the result as the handle
+	hWnd = CreateWindowEx(NULL,
+		windowsClassName,    // name of the window class
+		L"Our First Windowed Program",   // title of the window
+		WS_OVERLAPPEDWINDOW,    // window style
+		300,    // x-position of the window
+		300,    // y-position of the window
+		500,    // width of the window
+		400,    // height of the window
+		NULL,    // we have no parent window, NULL
+		NULL,    // we aren't using menus, NULL
+		hInstance,    // application handle
+		NULL);    // used with multiple windows, NULL
 
-    // display the window on the screen
-    ShowWindow(hWnd, nCmdShow);
+	// display the window on the screen
+	ShowWindow(hWnd, nCmdShow);
 	ShowWindow(hWnd, SW_MINIMIZE);
 
 	// create taskbar icon
@@ -328,21 +409,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// add icon
 	Shell_NotifyIcon(NIM_ADD, &icondata);
 
-    // enter the main loop:
 
-    // this struct holds Windows event messages
-    MSG msg;
 
-    // wait for the next message in the queue, store the result in 'msg'
-    while(GetMessage(&msg, NULL, 0, 0))
-    {
-        // translate keystroke messages into the right format
-        TranslateMessage(&msg);
+	// enter the main loop:
 
-        // send the message to the WindowProc function
-        DispatchMessage(&msg);
-    }
+	// this struct holds Windows event messages
+	MSG msg;
 
-    // return this part of the WM_QUIT message to Windows
-    return msg.wParam;
+	// wait for the next message in the queue, store the result in 'msg'
+	while(GetMessage(&msg, NULL, 0, 0))
+	{
+		// translate keystroke messages into the right format
+		TranslateMessage(&msg);
+
+		// send the message to the WindowProc function
+		DispatchMessage(&msg);
+	}
+
+	// return this part of the WM_QUIT message to Windows
+	return msg.wParam;
 }
